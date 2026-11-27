@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+  <title>Lane Clash</title>
+  <style>
+    :root { --ink:#13213a; --cream:#fff9df; --gold:#ffcf45; --blue:#54bfe8; --red:#f44f66; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; overflow:hidden; font-family:"Trebuchet MS",Arial,sans-serif; background:#b9def0; color:var(--ink); }
+    .game { height:100dvh; min-height:620px; display:grid; grid-template-rows:minmax(430px,1fr) 150px; max-width:920px; margin:auto; background:#cde7ed; position:relative; border-inline:8px solid #fff4bd; }
+    .arena { position:relative; overflow:hidden; background:linear-gradient(90deg,#91cce3 0 50%,#f08d86 50%); border-bottom:7px solid #253650; }
+    .arena:before { content:""; position:absolute; inset:0; background:linear-gradient(90deg,transparent 49.55%,rgba(255,255,255,.75) 49.55%,rgba(255,255,255,.75) 50.45%,transparent 50.45%), repeating-linear-gradient(0deg,rgba(255,255,255,.12) 0 2px,transparent 2px 70px); }
+    .lane-lines { position:absolute; left:0; right:0; top:21%; bottom:21%; border-top:3px solid rgba(255,255,255,.55); border-bottom:3px solid rgba(255,255,255,.55); }
+    .tower { position:absolute; z-index:3; width:105px; height:120px; left:calc(50% - 52px); border:6px solid #253650; border-radius:14px 14px 8px 8px; box-shadow:0 8px 0 rgba(27,48,72,.18); }
+    .tower:before { content:""; position:absolute; width:76px; height:25px; left:9px; top:-22px; border:5px solid #253650; border-radius:7px; background:inherit; }
+    .tower.blue { bottom:-4px; background:#75cbe9; }
+    .tower.red { top:-4px; background:#ef6575; }
+    .hp { position:absolute; z-index:5; left:50%; transform:translateX(-50%); height:20px; min-width:70px; border:3px solid #253650; border-radius:20px; background:#fff; text-align:center; font-size:12px; font-weight:900; line-height:14px; }
+    .tower.blue .hp { bottom:-44px; } .tower.red .hp { top:-42px; }
+    .unit { position:absolute; z-index:4; width:54px; height:54px; margin:-27px 0 0 -27px; border:4px solid #253650; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:27px; box-shadow:0 6px 0 rgba(35,54,78,.24); transition:left .05s linear, top .05s linear; }
+    .unit.blue { background:#87d9f3; } .unit.red { background:#ff8a94; }
+    .unit .health { position:absolute; width:58px; height:9px; border:2px solid #253650; border-radius:8px; background:#ef5a68; top:-13px; overflow:hidden; }
+    .unit .health i { display:block; height:100%; background:#68d7a0; }
+    .projectile { position:absolute; z-index:6; width:12px; height:12px; border-radius:50%; border:2px solid #253650; }
+    .topbar { position:absolute; z-index:10; left:12px; right:12px; top:12px; display:flex; justify-content:space-between; align-items:flex-start; pointer-events:none; }
+    .badge { border:3px solid #253650; background:#fff7d6; border-radius:12px; font-weight:900; box-shadow:0 4px 0 rgba(35,54,78,.18); padding:6px 10px; }
+    .badge.enemy { background:#ffd0cf; } .badge.timer { font-size:20px; min-width:62px; text-align:center; }
+    .hand { background:#f8f1c7; border-top:6px solid #253650; display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:8px; padding:10px 12px 12px; position:relative; }
+    .card { border:4px solid #253650; border-radius:14px; background:#fffdf0; text-align:center; cursor:pointer; position:relative; padding:5px 3px 4px; box-shadow:0 6px 0 #253650; transition:transform .08s, filter .15s; touch-action:manipulation; }
+    .card:hover { transform:translateY(-3px); } .card.selected { outline:5px solid var(--gold); transform:translateY(-7px); } .card.disabled { filter:grayscale(.8) brightness(.75); cursor:not-allowed; }
+    .card .emoji { display:block; font-size:36px; height:44px; line-height:44px; }
+    .card .name { display:block; font-size:12px; font-weight:900; }
+    .cost { position:absolute; width:30px; height:30px; border:3px solid #253650; border-radius:50%; right:-7px; top:-10px; background:#9ad7f4; font-weight:900; line-height:24px; }
+    .elixir { position:absolute; z-index:15; left:50%; bottom:126px; transform:translateX(-50%); width:min(440px,70%); height:18px; border:3px solid #253650; border-radius:20px; background:#493f66; overflow:hidden; }
+    .elixir i { display:block; height:100%; width:50%; background:linear-gradient(90deg,#b66bea,#e2a6ff); }
+    .overlay { display:none; position:absolute; z-index:30; inset:0; background:rgba(20,33,58,.72); align-items:center; justify-content:center; }
+    .overlay.show { display:flex; }
+    .modal { width:min(380px,86%); border:6px solid #253650; border-radius:24px; background:#fff9df; padding:28px 20px 20px; text-align:center; box-shadow:0 12px 0 rgba(20,33,58,.35); }
+    .modal h1 { margin:0 0 8px; font-size:38px; } .modal p { margin:0 0 18px; font-weight:bold; }
+    button.replay { border:4px solid #253650; border-radius:12px; background:#ffcf45; padding:12px 24px; font-size:17px; font-weight:900; box-shadow:0 5px 0 #253650; cursor:pointer; }
+    @media (max-height:700px) { .game { min-height:560px; grid-template-rows:minmax(410px,1fr) 145px; } }
+  </style>
+</head>
+<body>
+  <main class="game">
+    <section class="arena" id="arena">
+      <div class="lane-lines"></div>
+      <div class="topbar"><div class="badge enemy">ENEMY <span id="enemyTowerHp">1000</span></div><div class="badge timer" id="timer">2:00</div><div class="badge">YOU <span id="playerTowerHp">1000</span></div></div>
+      <div class="tower red" id="enemyTower"><div class="hp" id="enemyHpBar">1000</div></div>
+      <div class="tower blue" id="playerTower"><div class="hp" id="playerHpBar">1000</div></div>
+      <div class="elixir"><i id="elixirBar"></i></div>
+    </section>
+    <section class="hand" id="hand"></section>
+    <div class="overlay" id="overlay"><div class="modal"><h1 id="result">Victory!</h1><p id="summary">The tower is yours.</p><button class="replay" id="replay">Play Again</button></div></div>
+  </main>
+  <script>
+    const arena=document.getElementById('arena'), hand=document.getElementById('hand'), timerEl=document.getElementById('timer');
+    const cards=[
+      {name:'Knight',emoji:'🛡️',cost:3,hp:220,speed:42,damage:32,range:30,rate:.9},
+      {name:'Archer',emoji:'🏹',cost:2,hp:130,speed:50,damage:24,range:145,rate:.75},
+      {name:'Giant',emoji:'👊',cost:5,hp:600,speed:24,damage:70,range:38,rate:1.35},
+      {name:'Bomber',emoji:'💣',cost:3,hp:150,speed:38,damage:45,range:155,rate:1.1}
+    ];
+    let state, selected=0, last=performance.now(), timeLeft=120, elixir=5;
+    function reset(){
+      document.querySelectorAll('.unit,.projectile').forEach(e=>e.remove());
+      state={units:[],playerTower:{hp:1000,x:50,y:92,max:1000},enemyTower:{hp:1000,x:50,y:8,max:1000},over:false};
+      selected=0; timeLeft=120; elixir=5; last=performance.now();
+      document.getElementById('overlay').classList.remove('show');
+      cards.forEach((c,i)=>{ let card=document.querySelectorAll('.card')[i]; if(card) card.classList.remove('disabled','selected'); });
+    }
+    function renderHand(){ hand.innerHTML=''; cards.forEach((c,i)=>{const b=document.createElement('button');b.className='card'+(i===selected?' selected':'');b.innerHTML=`<span class="cost">${c.cost}</span><span class="emoji">${c.emoji}</span><span class="name">${c.name}</span>`;b.onclick=()=>{if(state.over)return;selected=i;document.querySelectorAll('.card').forEach((x,n)=>x.classList.toggle('selected',n===i));};hand.appendChild(b);});}
+    function spawn(type,team,y,x){
+      const c=cards[type]; const u={...c,type,team,x:x??50,y,hp:c.hp,max:c.hp,cool:0};
+      u.el=document.createElement('div');u.el.className='unit '+team;u.el.innerHTML=`<div class="health"><i></i></div><span>${c.emoji}</span>`;arena.appendChild(u.el);state.units.push(u);return u;
+    }
+    arena.addEventListener('pointerdown',e=>{if(state.over||elixir<cards[selected].cost)return;const r=arena.getBoundingRect?arena.getBoundingRect():arena.getBoundingClientRect();let y=(e.clientY-r.top)/r.height*100;if(y<52)return;elixir-=cards[selected].cost;spawn(selected,'blue',y);updateCards();});
+    function enemyAI(dt){
+      let z=state.units.filter(u=>u.team==='red').length; if(Math.random()<dt*.38&&z<5) spawn(Math.floor(Math.random()*4),'red',18+Math.random()*25);
+    }
+    function inRange(a,b){return Math.hypot(a.x-b.x,(a.y-b.y)*1.25)<=a.range/4;}
+    function shoot(u,target){
+      u.cool=u.rate;const p=document.createElement('div');p.className='projectile';p.style.background=u.team==='blue'?'#5cc4ed':'#ef6172';p.style.left=u.x+'%';p.style.top=u.y+'%';arena.appendChild(p);
+      let x=u.x,y=u.y,tx=target.x,ty=target.y,steps=8,i=0;
+      const fly=setInterval(()=>{i++;p.style.left=(x+(tx-x)*i/steps)+'%';p.style.top=(y+(ty-y)*i/steps)+'%';if(i>=steps){clearInterval(fly);p.remove();if(target.hp){target.hp-=u.damage;if(target.hp<=0){target.dead=true;}}}},30);
+    }
+    function update(dt){
+      if(state.over)return;
+      elixir=Math.min(10,elixir+dt*(timeLeft<30?1/7:1/10));timeLeft-=dt;if(timeLeft<=0)timeLeft=0;
+      enemyAI(dt);
+      for(const u of state.units){if(u.dead)continue;u.cool-=dt;let target=(u.team==='blue'?state.units.find(t=>t.team==='red'&&!t.dead):state.units.find(t=>t.team==='blue'&&!t.dead));
+        if(!target){target=u.team==='blue'?state.enemyTower:state.playerTower;}
+        if(inRange(u,target)){if(u.cool<=0){if(target===state.enemyTower||target===state.playerTower){u.cool=u.rate;target.hp-=u.damage;}else shoot(u,target);}}else{const dy=target.y-u.y,dx=target.x-u.x;const dist=Math.hypot(dx,dy);u.x+=dx/dist*u.speed*dt/100*Math.max(.5,Math.abs(dx)/35);u.y+=Math.sign(dy)*u.speed*dt/100;u.x=Math.max(4,Math.min(96,u.x));u.y=Math.max(5,Math.min(95,u.y));}
+        u.el.style.left=u.x+'%';u.el.style.top=u.y+'%';u.el.querySelector('.health i').style.width=Math.max(0,u.hp/u.max*100)+'%';
+      }
+      state.units=state.units.filter(u=>{if(u.dead||u.hp<=0){u.el.remove();return false}return true});
+      updateCards();updateTowers();if(state.enemyTower.hp<=0||state.playerTower.hp<=0||timeLeft<=0)endGame();
+    }
+    function updateCards(){document.querySelectorAll('.card').forEach((b,i)=>b.classList.toggle('disabled',elixir<cards[i].cost));document.getElementById('elixirBar').style.width=(elixir/10*100)+'%';}
+    function updateTowers(){const p=state.playerTower,h=state.enemyTower;document.getElementById('enemyTowerHp').textContent=Math.max(0,Math.ceil(h.hp));document.getElementById('playerTowerHp').textContent=Math.max(0,Math.ceil(p.hp));document.getElementById('enemyHpBar').textContent=Math.max(0,Math.ceil(h.hp));document.getElementById('playerHpBar').textContent=Math.max(0,Math.ceil(p.hp));document.getElementById('enemyTower').style.filter=`saturate(${.7+h.hp/h.max*.8})`;document.getElementById('playerTower').style.opacity=Math.max(.55,p.hp/p.max+.25);}
+    function endGame(){if(state.over)return;state.over=true;const p=state.playerTower.hp,e=state.enemyTower.hp;document.getElementById('result').textContent=p>e?'Victory!':p<e?'Defeat':'Draw';document.getElementById('summary').textContent=p>e?'The enemy tower has fallen.':p<e?'Your tower could not hold.':'Both towers survived.';document.getElementById('overlay').classList.add('show');}
+    function loop(now){const dt=Math.min(.05,(now-last)/1000);last=now;update(dt);timerEl.textContent=`${Math.floor(timeLeft/60)}:${String(Math.floor(timeLeft%60)).padStart(2,'0')}`;requestAnimationFrame(loop);} 
+    document.getElementById('replay').onclick=()=>reset();
+    renderHand();reset();requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
